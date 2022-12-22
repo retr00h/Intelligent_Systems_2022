@@ -33,11 +33,12 @@ split_floor <- function(houses) {
 houses <- read.csv(file = '.\\data\\regression\\House_Rent_Dataset.csv', header = T)
 
 head(houses)
-min_rent <- min(houses[['Rent']])
-mean_rent <- mean(houses[['Rent']])
-median_rent <- median(houses[['Rent']])
-variance_rent <- var(houses[['Rent']])
-max_rent <- max(houses[['Rent']])
+min_rent <- min(houses[['Total.Floors']])
+mean_rent <- mean(houses[['Total.Floors']])
+median_rent <- median(houses[['Total.Floors']])
+variance_rent <- var(houses[['Total.Floors']])
+std_dev <- sd(houses[['Total.Floors']])
+max_rent <- max(houses[['Total.Floors']])
 
 # Rho: 0.0455, p-value: 0.0017
 cor.test(as.numeric(as.factor(houses[['Floor']])), houses[['Rent']], method = 'spearman')
@@ -76,3 +77,7 @@ cor.test(houses[['Bathroom']], houses[['Rent']], method = 'spearman')
 
 # Rho: -0.5967, p-value: 2.2e-16
 cor.test(as.numeric(as.factor(houses[['Point.of.Contact']])), houses[['Rent']], method = 'spearman')
+
+
+
+# Factorise nominal data, remove null/invalid values
