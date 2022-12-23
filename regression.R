@@ -53,14 +53,18 @@ select_features <- function(houses) {
 }
 
 remove_outliers <- function(houses) {
+  removed_datapoints <- 0
+  max_removals <- length(houses[[1]]) / 10
   while(T) {
     m <- lm(Rent ~ ., houses[-1])
     distances <- cooks.distance(m)
-    if (!is.nan(max(distances)) && max(distances) > 4 / length(houses[[1]])) {
+    if (!is.nan(max(distances)) && max(distances) > 4 / length(houses[[1]]) &&
+        removed_datapoints >= max_removals) {
       break
     }
     indexe_to_remove <- which.max(distances)
     houses <- houses[-indexe_to_remove,]
+    removed_datapoints <- removed_datapoints + 1
   }
   return(houses)
 }
@@ -68,12 +72,12 @@ remove_outliers <- function(houses) {
 houses <- read.csv(file = '.\\data\\regression\\House_Rent_Dataset.csv', header = T)
 
 head(houses)
-min_rent <- min(houses[['Rent']])
-mean_rent <- mean(houses[['Rent']])
-median_rent <- median(houses[['Rent']])
-variance_rent <- var(houses[['Rent']])
-std_dev <- sd(houses[['Rent']])
-max_rent <- max(houses[['Rent']])
+min_rent <- min(houses_OLS[['Total.Floors']])
+mean_rent <- mean(houses_OLS[['Total.Floors']])
+median_rent <- median(houses_OLS[['Total.Floors']])
+variance_rent <- var(houses_OLS[['Total.Floors']])
+std_dev <- sd(houses_OLS[['Total.Floors']])
+max_rent <- max(houses_OLS[['Total.Floors']])
 
 # Rho: 0.0455, p-value: 0.0017
 cor.test(as.numeric(as.factor(houses[['Floor']])), houses[['Rent']], method = 'spearman')
