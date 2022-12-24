@@ -1,6 +1,6 @@
 library(FSinR)
 library(MASS)
-library(caret)
+# library(caret)
 
 split_floor <- function(houses) {
   floor <- houses[['Floor']]
@@ -34,12 +34,20 @@ split_floor <- function(houses) {
   return(houses)
 }
 
-prepare_data <- function(houses) {
+prepare_data_OLS <- function(houses) {
   houses[['City']] <- as.factor(houses[['City']])
   houses[['Furnishing.Status']] <- as.factor(houses[['Furnishing.Status']])
   houses[['Point.of.Contact']] <- as.factor(houses[['Point.of.Contact']])
   
   houses <- houses[-c(5,6,9)]
+  houses <- houses[-4061,]
+  
+  return(houses)
+}
+
+prepare_data_LMS <- function(houses) {
+  houses <- houses[-c(5,6,9)]
+  houses <- houses[-4061,]
   
   return(houses)
 }
@@ -53,20 +61,74 @@ select_features <- function(houses) {
 }
 
 remove_outliers <- function(houses) {
-  removed_datapoints <- 0
-  max_removals <- length(houses[[1]]) / 10
   while(T) {
     m <- lm(Rent ~ ., houses[-1])
     distances <- cooks.distance(m)
-    if (!is.nan(max(distances)) && max(distances) > 4 / length(houses[[1]]) &&
-        removed_datapoints >= max_removals) {
+    if (!is.nan(max(distances)) && max(distances) > 4 / length(houses[[1]])) {
       break
     }
     indexe_to_remove <- which.max(distances)
     houses <- houses[-indexe_to_remove,]
-    removed_datapoints <- removed_datapoints + 1
   }
   return(houses)
+}
+
+mean_absolute_error <- function(predictions, target) {
+  return(sum(abs(predictions - target)) / length(predictions))
+}
+
+root_mean_square_error <- function(predictions, target) {
+  return(sqrt(sum((predictions - target)^2) / length(predictions)))
+}
+
+r_squared <- function(predictions, target) {
+  ss_res <- sum((target - predictions)^2)
+  ss_tot <- sum((target - mean(target))^2)
+  return(1 - ss_res / ss_tot)
+}
+
+k_fold <- function(houses, model, k) {
+  sorted_indexes <- order(houses$Posted.On)
+  elements_in_split <- as.integer(length(houses[[1]]) / k)
+  
+  MAE <- 0
+  RMSE <- 0
+  Rsquared <- 0
+  
+  for (i in 1:k) {
+    start_index <- NA
+    end_index <- NA
+    if (i == 1) {
+      start_index <- 1
+      end_index <- elements_in_split
+    } else if (i == k) {
+      start_index <- (i-1) * elements_in_split
+      end_index <- length(houses[[1]])
+    } else {
+      start_index <- (i-1) * elements_in_split
+      end_index <- i * elements_in_split
+    }
+    
+    test_set <- houses[sorted_indexes[start_index : end_index],]
+    training_set <- houses[sorted_indexes[start_index : end_index],]
+    
+    m <- NA
+    if (model == 'lm') {
+      m <- lm(Rent ~ ., training_set[-1])
+    } else if (model == 'lms') {
+      m <- lmsreg(Rent ~ ., training_set[-1], method = 'lms')
+    }
+    predictions <- predict(m, newdata = test_set[-1])
+    MAE <- MAE + mean_absolute_error(predictions, test_set[[2]])
+    RMSE <- RMSE + root_mean_square_error(predictions, test_set[[2]])
+    Rsquared <- Rsquared + r_squared(predictions, test_set[[2]])
+  }
+  
+  MAE <- MAE / k
+  RMSE <- RMSE / k
+  Rsquared <- Rsquared / k
+  
+  return(data.frame(MAE, RMSE, Rsquared))
 }
 
 houses <- read.csv(file = '.\\data\\regression\\House_Rent_Dataset.csv', header = T)
@@ -107,13 +169,25 @@ cor.test(houses[['Bathroom']], houses[['Rent']], method = 'spearman')
 # Rho: -0.5967, p-value: 2.2e-16
 cor.test(as.numeric(as.factor(houses[['Point.of.Contact']])), houses[['Rent']], method = 'spearman')
 
-houses <- prepare_data(houses)
-houses <- select_features(houses)
-houses_OLS <- remove_outliers(houses)
+houses_OLS <- prepare_data_OLS(houses)
+houses_OLS <- select_features(houses_OLS)
+houses_OLS <- remove_outliers(houses_OLS)
 
-ctrl <- trainControl(method = "cv", number = 10)
-model <- train(Rent ~ BHK + Size + City + Furnishing.Status
-               + Bathroom + Point.of.Contact + Floor + Total.Floors,
-               data = houses_OLS, method = "lm", trControl = ctrl)
+metrics_OLS <- k_fold(houses_OLS, 'lm', 10)
 
+houses_LMS <- prepare_data_LMS(houses)
+houses_LMS <- select_features(houses_LMS)
+metrics_LMS <- k_fold(houses_LMS, 'lms', 10)
 
+metrics_OLS
+metrics_LMS
+
+# set.seed(100)
+# train <- trainControl(method = 'cv', number = 10)
+# model <- train(Rent ~ ., data = houses[-1], trControl = train, method = "lm")
+# model
+# 
+# set.seed(100)
+# train <- trainControl(method = 'cv', number = 10)
+# model <- train(Rent ~ ., data = houses[-1], trControl = train, method = "lms")
+# model
