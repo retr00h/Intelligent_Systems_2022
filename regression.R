@@ -1,6 +1,5 @@
 library(FSinR)
 library(MASS)
-# library(caret)
 
 split_floor <- function(houses) {
   floor <- houses[['Floor']]
@@ -73,6 +72,23 @@ remove_outliers <- function(houses) {
   return(houses)
 }
 
+remove_outliers_percent <- function(houses, k) {
+  removed_points <- 0
+  max_outliers <- length(houses[[1]]) * k
+  while(T) {
+    m <- lm(Rent ~ ., houses[-1])
+    distances <- cooks.distance(m)
+    if (!is.nan(max(distances)) && max(distances) > 4 / length(houses[[1]]) &&
+        removed_points >= max_outliers) {
+      break
+    }
+    indexe_to_remove <- which.max(distances)
+    houses <- houses[-indexe_to_remove,]
+    removed_points <- removed_points + 1
+  }
+  return(houses)
+}
+
 mean_absolute_error <- function(predictions, target) {
   return(sum(abs(predictions - target)) / length(predictions))
 }
@@ -112,6 +128,7 @@ k_fold <- function(houses, model, k) {
     test_set <- houses[sorted_indexes[start_index : end_index],]
     training_set <- houses[sorted_indexes[start_index : end_index],]
     
+    set.seed(100)
     m <- NA
     if (model == 'lm') {
       m <- lm(Rent ~ ., training_set[-1])
@@ -169,11 +186,42 @@ cor.test(houses[['Bathroom']], houses[['Rent']], method = 'spearman')
 # Rho: -0.5967, p-value: 2.2e-16
 cor.test(as.numeric(as.factor(houses[['Point.of.Contact']])), houses[['Rent']], method = 'spearman')
 
+
+shapiro.test(houses[['Floor']])
+shapiro.test(houses[['Total.Floors']])
+shapiro.test(houses[['BHK']])
+shapiro.test(houses[['Size']])
+shapiro.test(as.numeric(as.factor(houses[['City']])))
+shapiro.test(as.numeric(as.factor(houses[['Furnishing.Status']])))
+shapiro.test(houses[['Bathroom']])
+shapiro.test(as.numeric(as.factor(houses[['Point.of.Contact']])))
+
+
+houses_OLS <- prepare_data_OLS(houses)
+houses_OLS <- select_features(houses_OLS)
+houses_OLS_05 <- remove_outliers_percent(houses_OLS, 0.05)
+houses_OLS_10 <- remove_outliers_percent(houses_OLS, 0.10)
+houses_OLS_15 <- remove_outliers_percent(houses_OLS, 0.15)
+houses_OLS_20 <- remove_outliers_percent(houses_OLS, 0.20)
+houses_OLS_25 <- remove_outliers_percent(houses_OLS, 0.25)
+houses_OLS_30 <- remove_outliers_percent(houses_OLS, 0.30)
+houses_OLS_35 <- remove_outliers_percent(houses_OLS, 0.35)
+houses_OLS_40 <- remove_outliers_percent(houses_OLS, 0.40)
+
 houses_OLS <- prepare_data_OLS(houses)
 houses_OLS <- select_features(houses_OLS)
 houses_OLS <- remove_outliers(houses_OLS)
 
+
 metrics_OLS <- k_fold(houses_OLS, 'lm', 10)
+metrics_OLS_05 <- k_fold(houses_OLS_05, 'lm', 5)
+metrics_OLS_10 <- k_fold(houses_OLS_10, 'lm', 5)
+metrics_OLS_15 <- k_fold(houses_OLS_15, 'lm', 5)
+metrics_OLS_20 <- k_fold(houses_OLS_20, 'lm', 5)
+metrics_OLS_25 <- k_fold(houses_OLS_25, 'lm', 5)
+metrics_OLS_30 <- k_fold(houses_OLS_30, 'lm', 5)
+metrics_OLS_35 <- k_fold(houses_OLS_35, 'lm', 5)
+metrics_OLS_40 <- k_fold(houses_OLS_40, 'lm', 5)
 
 houses_LMS <- prepare_data_LMS(houses)
 houses_LMS <- select_features(houses_LMS)
@@ -182,12 +230,11 @@ metrics_LMS <- k_fold(houses_LMS, 'lms', 10)
 metrics_OLS
 metrics_LMS
 
-# set.seed(100)
-# train <- trainControl(method = 'cv', number = 10)
-# model <- train(Rent ~ ., data = houses[-1], trControl = train, method = "lm")
-# model
-# 
-# set.seed(100)
-# train <- trainControl(method = 'cv', number = 10)
-# model <- train(Rent ~ ., data = houses[-1], trControl = train, method = "lms")
-# model
+metrics_OLS_05
+metrics_OLS_10
+metrics_OLS_15
+metrics_OLS_20
+metrics_OLS_25
+metrics_OLS_30
+metrics_OLS_35
+metrics_OLS_40
