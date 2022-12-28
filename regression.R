@@ -33,6 +33,18 @@ split_floor <- function(houses) {
   return(houses)
 }
 
+mode <- function(x) {
+  ux <- unique(x)
+  return(ux[which.max(tabulate(match(x, ux)))])
+}
+
+entropy <- function(x) {
+  freq <- table(x)/length(x)
+  v <- as.data.frame(freq)[, 2]
+  v <- v[v > 0]
+  return(-sum(v * log2(v)))
+}
+
 prepare_data_OLS <- function(houses) {
   houses[['City']] <- as.factor(houses[['City']])
   houses[['Furnishing.Status']] <- as.factor(houses[['Furnishing.Status']])
@@ -186,6 +198,8 @@ cor.test(houses[['Bathroom']], houses[['Rent']], method = 'spearman')
 # Rho: -0.5967, p-value: 2.2e-16
 cor.test(as.numeric(as.factor(houses[['Point.of.Contact']])), houses[['Rent']], method = 'spearman')
 
+mode(houses[['Point.of.Contact']])
+entropy(houses[['Point.of.Contact']])
 
 shapiro.test(houses[['Floor']])
 shapiro.test(houses[['Total.Floors']])
