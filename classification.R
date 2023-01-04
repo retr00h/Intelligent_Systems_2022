@@ -1,17 +1,8 @@
-library(imbalance)
-library(tidyverse)
+library(FSinR)
 library(caret)
-library(pROC)
 library(nnet)
 
 remove_invalid <- function(data) {
-  for (i in 1:8) {
-    indexes_to_remove <- which(data[[i]] < 0)
-    if (length(indexes_to_remove) != 0) {
-      data <- data[-indexes_to_remove,]
-    }
-  }
-  
   indexes_to_remove <- which(data[[7]] > 1)
   if (length(indexes_to_remove) != 0) {
     data <- data[-indexes_to_remove,]
@@ -20,55 +11,46 @@ remove_invalid <- function(data) {
   return(data)
 }
 
-fix_invalid <- function(data) {
-  for (i in 1:8) {
-    indexes_to_fix <- which(data[[i]] < 0)
-    if (length(indexes_to_fix) != 0) {
-      data[indexes_to_fix, i] <- 0
-    }
-  }
-  
-  indexes_to_fix <- which(data[[7]] > 1)
-  if (length(indexes_to_fix) != 0) {
-    data[indexes_to_fix, i] <- 1
-  }
-  
-  return(data)
+
+select_features <- function(data) {
+  searcher <- searchAlgorithm('sequentialForwardSelection')
+  evaluator <- filterEvaluator('giniIndex')
+  res <- featureSelection(data, 'Outcome', searcher, evaluator)
+  selected_features <- c(which(res$bestFeatures == 1), 9)
+  print(selected_features)
+  return(data[selected_features])
 }
 
+
 patients <- read.csv(file = '.\\data\\classification\\diabetes.csv', header = T)
+patients <- remove_invalid(patients)
 
-head(patients_balanced)
+head(patients)
 n <- 8
-min(patients_balanced[[n]])
-max(patients_balanced[[n]])
-mean(patients_balanced[[n]])
-median(patients_balanced[[n]])
-sd(patients_balanced[[n]])
-var(patients_balanced[[n]])
+min(patients[[n]])
+max(patients[[n]])
+mean(patients[[n]])
+median(patients[[n]])
+sd(patients[[n]])
+var(patients[[n]])
 
-patients <- fix_invalid(patients)
+patients <- select_features(patients)
 
-prevalence <- max(table(patients$Outcome) / length(patients[[1]]))
+patients$Outcome <- ifelse(patients$Outcome == 1, 'Unhealthy', 'Healthy')
+patients$Outcome <- as.factor(patients$Outcome)
+
 set.seed(100)
-newPDFOS <- pdfos(patients, numInstances = abs(max(table(patients$Outcome)) -
-                                                 length(patients[[1]])),
-                  classAttr = 'Outcome')
-patients_balanced <- merge(patients, newPDFOS, all = T)
-prevalence <- max(table(patients_balanced$Outcome) / length(patients_balanced[[1]]))
-
-# Use remove_invalid to obtain a non perfectly balanced dataset
-patients_balanced <- fix_invalid(patients_balanced)
-prevalence <- max(table(patients_balanced$Outcome) / length(patients_balanced[[1]]))
-
-patients_balanced$Outcome <- ifelse(patients_balanced$Outcome == 1, 'Unhealthy', 'Healthy')
-patients_balanced$Outcome <- as.factor(patients_balanced$Outcome)
+inTrain <- createDataPartition(
+  y = patients$Outcome,
+  p = 0.8,
+  list = FALSE
+)
 
 set.seed(100)
 ctrl <- trainControl(method = 'cv', number = 10,
                      summaryFunction = twoClassSummary,
                      classProbs = T, savePredictions = T)
-logistic_regression <- train(Outcome ~ ., data = patients_balanced,
+logistic_regression <- train(Outcome ~ ., data = patients[inTrain,],
                             method = 'glm', trControl = ctrl, metric = 'ROC')
 
 roc_logistic = roc(as.numeric(logistic_regression$trainingData$.outcome == 'Unhealthy'),
@@ -87,7 +69,7 @@ ctrl <- trainControl(method = 'cv', number = 10,
 nnGrid <- expand.grid(size = seq(1, 10), decay = seq(0, 0.5, 0.1))
 
 Sys.time()
-neural_network <- train(Outcome ~ ., data = patients_balanced,
+neural_network <- train(Outcome ~ ., data = patients[inTrain,],
                        method = 'nnet', maxit = 5000, tuneGrid = nnGrid,
                        trace = F, trControl = ctrl, metric = 'ROC')
 Sys.time()
@@ -101,11 +83,13 @@ c = coords(roc_nn, x = "best", best.method = 'youden')
 abline(v = c[2], col = 'red')
 abline(h = c[3], col = 'red')
 
-logistic_cm <- confusionMatrix(logistic_regression$pred$pred,
-                               reference = logistic_regression$pred$obs)
+logistic_predictions <- predict(logistic_regression, newdata = patients[-inTrain,])
+nn_predictions <- predict(neural_network, newdata = patients[-inTrain,])
 
-nn_cm <- confusionMatrix(neural_network$pred$pred,
-                               reference = neural_network$pred$obs)
+logistic_cm <- confusionMatrix(logistic_predictions,
+                               reference = patients[-inTrain, 4])
+nn_cm <- confusionMatrix(nn_predictions,
+                               reference = patients[-inTrain, 4])
 
 logistic_cm$overall
 nn_cm$overall
