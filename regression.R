@@ -35,16 +35,7 @@ split_floor <- function(houses) {
 
 prepare_data <- function(houses) {
   houses <- houses[-c(1,7,10)]
-  houses <- houses[-4061,]
-  
-  return(houses)
-}
-
-factorize <- function(houses) {
-  houses[['BHK']] <- as.integer(houses[['BHK']])
-  houses[['Area.Type']] <- as.factor(houses[['Area.Type']])
-  houses[['City']] <- as.factor(houses[['City']])
-  houses[['Furnishing.Status']] <- as.factor(houses[['Furnishing.Status']])
+  houses <- houses[-c(3079, 3966, 4061),]
   
   return(houses)
 }
@@ -58,14 +49,18 @@ select_features <- function(houses) {
 }
 
 remove_outliers <- function(houses) {
+  removed_datapoints <- 0
+  max_datapoints_to_remove <- length(houses[[1]]) * 0.1
   while(T) {
     m <- lm(Rent ~ ., houses)
     distances <- cooks.distance(m)
-    if (!is.nan(max(distances)) && max(distances) < 4 / length(houses[[1]])) {
+    if (removed_datapoints > max_datapoints_to_remove ||
+        (!is.nan(max(distances)) && max(distances) < 4 / length(houses[[1]]))) {
       break
     }
-    indexe_to_remove <- which.max(distances)
-    houses <- houses[-indexe_to_remove,]
+    index_to_remove <- which.max(distances)
+    houses <- houses[-index_to_remove,]
+    removed_datapoints <- removed_datapoints + 1
   }
   return(houses)
 }
@@ -84,46 +79,6 @@ r_squared <- function(predictions, target) {
   return(1 - ss_res / ss_tot)
 }
 
-cross_validation <- function(houses, model) {
-  MAE <- 0
-  RMSE <- 0
-  Rsquared <- 0
-  
-  for (i in seq(1, length(houses[[1]]), 1)) {
-    if (i %% 100 == 0) {
-      print(i)
-    }
-    test_instance <- houses[i,]
-    training_set <- houses[-i,]
-    
-    set.seed(100)
-    m <- NA
-    if (model == 'lm') {
-      m <- lm(Rent ~ ., training_set)
-    } else if (model == 'lms') {
-      m <- lmsreg(Rent ~ ., training_set, method = 'lms')
-    }
-    predictions <- predict(m, newdata = test_instance)
-    MAE <- MAE + mean_absolute_error(predictions, test_instance[[2]])
-    RMSE <- RMSE + root_mean_square_error(predictions, test_instance[[2]])
-  }
-  
-  l <- length(houses[[1]])
-  
-  MAE <- MAE / l
-  RMSE <- RMSE / l
-  
-  m <- NA
-  if (model == 'lm') {
-    m <- lm(Rent ~ ., houses)
-  } else if (model == 'lms') {
-    m <- lmsreg(Rent ~ ., houses, method = 'lms')
-  }
-  Rsquared <- r_squared(predict(m, newdata = houses), houses[[2]])
-  
-  return(data.frame(MAE, RMSE, Rsquared))
-}
-
 houses <- read.csv(file = '.\\data\\regression\\House_Rent_Dataset.csv', header = T)
 
 
@@ -135,22 +90,33 @@ City <- houses[['City']]
 FurnishingStatus <- houses[['Furnishing.Status']]
 TenantPreferred <- houses[['Tenant.Preferred']]
 PointOfContact <- houses[['Point.of.Contact']]
+AreaType <- houses[['Area.Type']]
 
-plot(table(City))
-plot(table(FurnishingStatus))
-plot(table(TenantPreferred))
-plot(table(PointOfContact))
 
-plot(Rent ~ Size)
-plot(Rent ~ BHK)
-plot(Rent ~ Bathroom)
+plot(table(City), xlab = 'City', ylab = 'Number of instances')
+plot(table(FurnishingStatus), xlab = 'Furnishing status', ylab = 'Number of instances')
+plot(table(TenantPreferred),xlab = 'Type of preferred tenant', ylab = 'Number of instances')
+plot(table(PointOfContact), xlab = 'Point of contact', ylab = 'Number of instances')
+
+plot(table(AreaType), xlab = 'Measurement method', ylab = 'Number of instances')
+plot(Rent ~ Size, xlab = 'Size (ft^2)', ylab = 'Rent (INR/month)')
+plot(Rent ~ BHK, xlab = 'BHK', ylab = 'Rent (INR/month)')
+plot(Rent ~ Bathroom, xlab = 'Number of bathrooms', ylab = 'Rent (INR/month)')
 
 
 houses <- split_floor(houses)
+Rent <- houses[['Rent']]
+Floor <- houses[['Floor']]
+TotalFloors <- houses[['Total.Floors']]
+plot(table(Floor), xlab = 'Floor number', ylab = 'Number of instances')
+plot(table(TotalFloors), xlab = 'Total floors', ylab = 'Number of instances')
+plot(Rent ~ Floor, xlab = 'Floor number', ylab = 'Rent (INR/month)')
+plot(Rent ~ TotalFloors, xlab = 'Total floors', ylab = 'Rent (INR/month)')
+
+
 houses <- prepare_data(houses)
 houses <- select_features(houses)
 houses_OLS <- remove_outliers(houses)
-houses_OLS <- factorize(houses_OLS)
 
 
 set.seed(100)
@@ -176,10 +142,17 @@ inTrain <- createDataPartition(
   list = FALSE
 )
 
-training_set <- houses_OLS[inTrain,]
-test_set <- houses_OLS[-inTrain,]
+training_set <- houses[inTrain,]
+test_set <- houses[-inTrain,]
 lms <- lmsreg(Rent ~ ., training_set, method = 'lms')
 predictions <- predict(ols, newdata = test_set)
+root_mean_square_error(predictions, test_set[[2]])
+mean_absolute_error(predictions, test_set[[2]])
+r_squared(predictions, test_set[[2]])
+
+
+ols_outliers <- lm(Rent ~ ., data = training_set)
+predictions <- predict(ols_outliers, newdata = test_set)
 root_mean_square_error(predictions, test_set[[2]])
 mean_absolute_error(predictions, test_set[[2]])
 r_squared(predictions, test_set[[2]])
