@@ -2,8 +2,39 @@ library(FSinR)
 library(MASS)
 library(caret)
 
+split_floor <- function(houses) {
+  floor <- houses[['Floor']]
+  
+  splitted_floor <- strsplit(floor, ' ')
+  new_floor <- list()
+  new_total_floors <- list()
+  
+  for (sf in splitted_floor) {
+    floor_to_append <- NA
+    total_floor_to_append <- sf[[length(sf)]]
+    if ('basement' %in% sf || 'Basement' %in% sf) {
+      floor_to_append <- -1
+    } else if ('Ground' %in% sf || 'ground' %in% sf) {
+      floor_to_append <- 0
+    } else {
+      floor_to_append <- sf[[1]]
+    }
+    
+    new_floor <- append(new_floor, floor_to_append)
+    new_total_floors <- append(new_total_floors, total_floor_to_append)
+  }
+  
+  houses$Floor <- as.numeric(unlist(new_floor))
+  houses$Total.Floors <- as.numeric(unlist(new_total_floors))
+  
+  indexes_to_remove <- which(is.na(houses[['Total.Floors']]))
+  houses <- houses[-indexes_to_remove,]
+  
+  return(houses)
+}
+
 prepare_data <- function(houses) {
-  houses <- houses[-c(1,5,7,10)]
+  houses <- houses[-c(1,7,10)]
   houses <- houses[-4061,]
   
   return(houses)
@@ -93,50 +124,6 @@ cross_validation <- function(houses, model) {
   return(data.frame(MAE, RMSE, Rsquared))
 }
 
-k_fold <- function(houses, model, k) {
-  indexes <- seq(1, length(houses[[1]]), 1)
-  elements_in_split <- as.integer(length(houses[[1]]) / k)
-
-  MAE <- 0
-  RMSE <- 0
-  Rsquared <- 0
-  for (i in 1:k) {
-    start_index <- NA
-    end_index <- NA
-    if (i == 1) {
-      start_index <- 1
-      end_index <- elements_in_split
-    } else if (i == k) {
-      start_index <- (i-1) * elements_in_split
-      end_index <- length(houses[[1]])
-    } else {
-      start_index <- (i-1) * elements_in_split
-      end_index <- i * elements_in_split
-    }
-
-    test_set <- houses[indexes[start_index : end_index],]
-    training_set <- houses[-indexes[start_index : end_index],]
-
-
-    set.seed(100)
-    m <- NA
-    if (model == 'lm') {
-      m <- lm(Rent ~ ., training_set)
-    } else if (model == 'lms') {
-      m <- lmsreg(Rent ~ ., training_set, method = 'lms')
-    }
-    predictions <- predict(m, newdata = test_set)
-    MAE <- MAE + mean_absolute_error(predictions, test_set[[2]])
-    RMSE <- RMSE + root_mean_square_error(predictions, test_set[[2]])
-  }
-
-  MAE <- MAE / k
-  RMSE <- RMSE / k
-  Rsquared <- Rsquared / k
-
-  return(data.frame(MAE, RMSE, Rsquared))
-}
-
 houses <- read.csv(file = '.\\data\\regression\\House_Rent_Dataset.csv', header = T)
 
 
@@ -158,6 +145,8 @@ plot(Rent ~ Size)
 plot(Rent ~ BHK)
 plot(Rent ~ Bathroom)
 
+
+houses <- split_floor(houses)
 houses <- prepare_data(houses)
 houses <- select_features(houses)
 houses_OLS <- remove_outliers(houses)
