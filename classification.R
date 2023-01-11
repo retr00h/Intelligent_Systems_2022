@@ -1,6 +1,7 @@
 library(FSinR)
 library(caret)
 library(nnet)
+library(pROC)
 
 remove_invalid <- function(data) {
   indexes_to_remove <- which(data[[7]] > 1)
@@ -59,6 +60,7 @@ roc_logistic = roc(as.numeric(logistic_regression$trainingData$.outcome == 'Unhe
 
 plot(roc_logistic)
 c = coords(roc_logistic, x = "best", best.method = 'youden')
+c$threshold # 0.2309899
 abline(v = c[2])
 abline(h = c[3])
 
@@ -82,7 +84,6 @@ lines(roc_nn, col = 'red')
 c = coords(roc_nn, x = "best", best.method = 'youden')
 abline(v = c[2], col = 'red')
 abline(h = c[3], col = 'red')
-
 logistic_predictions <- predict(logistic_regression, newdata = patients[-inTrain,])
 nn_predictions <- predict(neural_network, newdata = patients[-inTrain,])
 
@@ -97,3 +98,28 @@ nn_cm$overall
 logistic_cm$byClass
 nn_cm$byClass
 
+
+
+
+outcome <- patients[['Outcome']]
+pregnancies <- patients[['Pregnancies']]
+glucose <- patients[['Glucose']]
+dpf <- patients[['DiabetesPedigreeFunction']]
+
+m <- glm(outcome ~ dpf, family = binomial(link = "logit"))
+
+predicted_data <- data.frame(probability.of.diabetes = m$fitted.values,
+                             diabetes = outcome)
+predicted_data <- predicted_data[order(predicted_data$probability.of.diabetes,
+                                       decreasing = F),]
+predicted_data$rank <- 1:nrow(predicted_data)
+
+library(ggplot2)
+library(cowplot)
+
+ggplot(data = predicted_data, aes(x = rank, y = probability.of.diabetes)) +
+  geom_point(aes(color = diabetes), alpha = 1, shape = 4, stroke = 1) +
+  xlab('Index') +
+  ylab('Predicted probability of having diabetes')
+
+ggsave('dpf_diabetes_probabilities.png')
