@@ -156,3 +156,14 @@ predictions <- predict(ols_outliers, newdata = test_set)
 root_mean_square_error(predictions, test_set[[2]])
 mean_absolute_error(predictions, test_set[[2]])
 r_squared(predictions, test_set[[2]])
+
+
+library(ggplot2)
+library(cowplot)
+
+ggplot(data = houses_OLS, aes(x = Point.of.Contact, y = Rent)) +
+  geom_point(aes(color = Point.of.Contact), alpha = 1, shape = 4, stroke = 2) +
+  xlab('Point of contact') +
+  ylab('Renting price (INR/month)')
+
+ggsave('rent_over_contact_point.png')
